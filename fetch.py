@@ -1,4 +1,6 @@
-# Fetch script to get several distinct copies of an episode out of Megaphone.
+#!/usr/bin/env python3
+
+# Fetch script to get several distinct copies of an episode out of Megaphone and filter down to an ad-free copy.
 
 import sys
 import urllib.request
