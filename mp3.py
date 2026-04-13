@@ -1,6 +1,7 @@
 #
 # mp3.py -- MP3-frame meta-data parser
 # Copyright (C) 2003-2004  Sune Kirkeby
+# Python 3 port (C) 2026 Adam Novak
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,6 +26,7 @@ raw frame-data and meta-data (such as frame bitrates)."""
 from __future__ import generators
 
 import struct
+import sys
 
 class MP3Error(Exception):
     """I signal a generic error related to MP3-data."""
@@ -72,27 +74,27 @@ def frameheader(dat, i):
     The sampling rate is returned in Hz (e.g. 44100)."""
     
     if len(dat) - i < 4:
-        raise MP3FrameHeaderError, 'frame too short for MPEG-header'
+        raise MP3FrameHeaderError('frame too short for MPEG-header')
 
-    bytes = map(ord, dat[i : i+4])
+    bytes = dat[i : i+4]
 
     # bits 31 - 21 (frame sync)
     if not bytes[0] == 255 and (bytes[1] & 224) == 224:
-        raise MP3FrameHeaderError, 'frame sync not found'
+        raise MP3FrameHeaderError('frame sync not found')
 
     # bits 20 - 19 (mpeg version)
     id = (bytes[1] & 24) >> 3
     if id == 0:
         version = 2.5
     elif id == 1:
-        raise MP3FrameHeaderError, 'unknown MPEG version (bad frame sync?)'
+        raise MP3FrameHeaderError('unknown MPEG version (bad frame sync?)')
     else:
         version = 4 - id
 
     # bits 18 - 17 (mpeg layer)
     layer = (bytes[1] & 6) >> 1
     if layer == 0:
-        raise MP3FrameHeaderError, 'unknown Layer description'
+        raise MP3FrameHeaderError('unknown Layer description')
     else:
         layer = 4 - layer
     
@@ -102,16 +104,16 @@ def frameheader(dat, i):
     # bits 15 - 12 (bitrate)
     bitrate = bytes[2] >> 4
     if bitrate == 15:
-        raise MP3FrameHeaderError, 'bad bitrate'
+        raise MP3FrameHeaderError('bad bitrate')
     elif bitrate:
         bitrate = bitrates[int(version)-1][layer-1][bitrate-1]
 
     # bits 11 - 10 (sampling rate)
     samplingrate = (bytes[2] & 12) >> 2
     if samplingrate == 3:
-        raise MP3FrameHeaderError, 'bad sampling-rate'
+        raise MP3FrameHeaderError('bad sampling-rate')
     if version == 2.5:
-        samplingrate = samplingrates[int(version)-1][samplingrate] / 2
+        samplingrate = samplingrates[int(version)-1][samplingrate] // 2
     else:
         samplingrate = samplingrates[int(version)-1][samplingrate]
 
@@ -164,7 +166,7 @@ def framelen(hdr):
         else:
             mul, slot = 72, 1
 
-    return ((mul * bitrate * 1000 / samplingrate) + (padding * slot)) * slot
+    return ((mul * bitrate * 1000 // samplingrate) + (padding * slot)) * slot
 
 def frames(f):
     """frames(file) -> (header, frame) generator
@@ -183,7 +185,7 @@ def frames(f):
 
     try:
         # dat is our read buffer
-        dat = ''
+        dat = b''
         # frame tells if the last iteration found an MP3-frame
         # or something else (e.g. an ID3-tag)
         frame = 0
@@ -197,7 +199,7 @@ def frames(f):
             # fill buffer
             while len(dat) < i + min_dat:
                 rd = f.read(i + min_dat - len(dat))
-                if rd == '':
+                if rd == b'':
                     break
                 dat = dat + rd
 
@@ -215,16 +217,16 @@ def frames(f):
             if len(dat) < min_dat:
                 break
 
-            if dat.startswith('TAG'):
+            if dat.startswith(b'TAG'):
                 # skip ID3v1 tags
                 frame = 0
                 i = 128
 
-            elif dat.startswith('ID3'):
+            elif dat.startswith(b'ID3'):
                 # skip ID3v2 tags
                 frame = 0
-                i = (ord(dat[6]) << 21) + (ord(dat[7]) << 14) + \
-                    (ord(dat[8]) << 7) + ord(dat[9]) + 10
+                i = (dat[6] << 21) + (dat[7] << 14) + \
+                    (dat[8] << 7) + dat[9] + 10
 
             else:
                 hdr = frameheader(dat, 0)
@@ -232,9 +234,9 @@ def frames(f):
                 frame = 1
                 no = no + 1
 
-    except MP3FrameHeaderError, e:
-        raise MP3Error, 'bad frame-header at offset %d (%x): %s' \
-                        % (j, j, e.args[0])
+    except MP3FrameHeaderError as e:
+        raise MP3Error('bad frame-header at offset %d (%x): %s' \
+                        % (j, j, e.args[0]))
 
 def good_data(f):
     """good_data(file) -> good-data-buffer generator
@@ -243,10 +245,10 @@ def good_data(f):
     yielding their raw data buffers one at a time."""
 
     # read entire file into memory
-    buffer = ''
+    buffer = b''
     while 1:
         r = f.read()
-        if r == '':
+        if r == b'':
             break
         buffer = buffer + r
 
@@ -254,28 +256,28 @@ def good_data(f):
     max = len(buffer)
     while index < max - 4:
         good, length = 0, 1
-        if buffer.startswith('TAG', index):
+        if buffer.startswith(b'TAG', index):
             # ID3v1 tag
             good = 1
             length = 128
             
-        elif buffer.startswith('ID3', index) and max - index > 9:
+        elif buffer.startswith(b'ID3', index) and max - index > 9:
             # IV3v2 tag
             good = 1
-            length = (ord(buffer[index + 6]) << 21) + \
-                     (ord(buffer[index + 7]) << 14) + \
-                     (ord(buffer[index + 8]) << 7) + \
-                     ord(buffer[index + 9]) + 10
+            length = (buffer[index + 6] << 21) + \
+                     (buffer[index + 7] << 14) + \
+                     (buffer[index + 8] << 7) + \
+                     buffer[index + 9] + 10
                      
-        elif buffer[index] == '\xff' and \
-             not buffer[index + 1] == '\xff' and \
-             (ord(buffer[index + 1]) & 224) == 224:
+        elif buffer[index] == 255 and \
+             (not buffer[index + 1] == 255) and \
+             (buffer[index + 1] & 224) == 224:
             # MP3 frames
             try:
                 hdr = frameheader(buffer, index)
                 length = framelen(hdr)
                 good = 1
-            except MP3Error, e:
+            except MP3Error as e:
                 pass
 
         if good:
