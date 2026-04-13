@@ -58,6 +58,7 @@ if __name__ == "__main__":
         sys.stderr.write(f"{sys.argv[0]}: get a clean copy of a Megaphone podcast episode without dynamic ads to standard out\nusage: {sys.argv[0]} https://traffic.megaphone.fm/<...>\n")
 
     result_file = open_clean(sys.argv[1])
+    result_file.seek(0)
     shutil.copyfileobj(result_file, sys.stdout.buffer)
 
 
