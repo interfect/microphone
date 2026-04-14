@@ -4,7 +4,7 @@ I was listening to a podcast hosted through Megaphone, and I noticed that it had
 
 I will not be purchasing the Kpop Demon Hunters meal at McDonalds, so I decided to make a tool to drop the dynamic ads from the podcast.
 
-# Usage as a Docker Container
+## Run an Ad-Filtering Proxy with Docker
 
 Run the Microphone ad-filtering proxy server server (`server.py`) as a Docker container:
 ```
@@ -23,7 +23,7 @@ docker run -ti --rm -e MICROPHONE_TOKEN=8a12aa64-37c0-11f1-96aa-077586b680f4 -p 
 ```
 This makes the forms on the homepage (and the API) require the token. You can include the token in the homepage URL to pre-fill it, like [http://127.0.0.1:8080?token=8a12aa64-37c0-11f1-96aa-077586b680f4](http://127.0.0.1:8080?token=8a12aa64-37c0-11f1-96aa-077586b680f4).
 
-## Permanent Deployment with Docker Compose
+### Permanent Deployment with Docker Compose
 
 To integrate with an existing Docker-Compose-managed set of services, add something like this to your `docker_compose.yml`:
 ```
@@ -42,7 +42,16 @@ To integrate with an existing Docker-Compose-managed set of services, add someth
     restart: always
 ```
 
-# Usage as a Command Line Tool
+### Rebuilding the Container
+
+To build the Docker container yourself, clone the repository and, inside it, run:
+```
+docker build -t quay.io/interfect/microphone:latest .
+```
+
+Note that Microphone is licensed under the [GNU Affero General Public License](https://www.gnu.org/licenses/agpl-3.0.html), so if you run your own deployment with modified source code, you must adjust the "source code" link on the homepage to point to where you have published *your modified version* of the code, or otherwise provide a way to download it.
+
+## Usage as a Command Line Tool
 
 Right now, there's nothing to process an RSS feed or host an episode-processing proxy; you can only fetch a single episode at a time from its `https://traffic.megaphone.fm/XXXXXXX.mp3?XXXXXXX` URL.
 
@@ -65,7 +74,7 @@ python3 server.py
 ```
 Also make sure to check out `python3 server.py --help`.
 
-# How It Works
+## How It Works
 
 Other podcast ad-removal tools like [MinusPod](https://github.com/ttlequals0/MinusPod) work by using AI transcription and ad-guessing, so they work even on fixed sponsor segments that are part of the "real" episode, but they require expensive language models to function.
 
