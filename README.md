@@ -88,3 +88,8 @@ Microphone requests several copies of a podcast episode from Megaphone, each of 
 
 To parse MP3 frames, Microphone uses a slightly modified version of part of https://github.com/kirkeby/python-mp3, by Sune Kirkeby.
 
+# Future Plans
+Under load, or when you download a bunch of episodes at once, the remote end can get bored and hang up after getting a 200 OK but before getting all the data. Since we don't send a content-length, it won't know it doesn't have all the data, and might end up successfully downloading a 0-size file. We should split the preprocessing of the comparison streams from the live streaming and filtering so it can all happen before the 200 OK response is sent.
+
+Sometimes a marketing executive is very insistent that you have a particular ad in a particular slot, always. This makes it past the filter. To improve reliability, we should track hashes and lengths of ads, so of we ever detect and remove an ad, we'll remember it's an ad when processing futurer episodes (at least until reboot?).
+
