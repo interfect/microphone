@@ -25,6 +25,9 @@ TOKEN_REGEX="[a-zA-Z0-9-]+"
 # short enough that not much can be gotten up to within it.
 MAX_REMOTE_URL_LENGTH = 128
 
+# How long of a Host header (hostname and port) should we be willing to echo back?
+MAX_HOST_HEADER_LENGTH = 1024
+
 class MicrophoneHTTPRequestHandler(BaseHTTPRequestHandler):
     """
     Class implementing feed proxying and episode preprocessing.
@@ -48,6 +51,8 @@ class MicrophoneHTTPRequestHandler(BaseHTTPRequestHandler):
     
     # Class-level base URL for the API to put in references back to it in the feed.
     base_url = None
+    # Failing that, what protocol do we use?
+    base_protocol = "http"
     
     
     def do_GET(self):
@@ -158,6 +163,28 @@ class MicrophoneHTTPRequestHandler(BaseHTTPRequestHandler):
         
         # Links we generate will need to include the token if available.
         provided_token = self._get_token(query_dict)
+
+        # Determine the base URL to refer back to us in the feed.
+        # RSS clients seem to not understand relative URIs in enclosures.
+        if self.base_url is not None:
+            # We have an override
+            base = self.base_url
+        elif "Host" in self.headers and len(self.headers["Host"]) <= MAX_HOST_HEADER_LENGTH:
+            base = self.headers["Host"]
+            # TODO: Probably nothing bad can happen if you feed bad Host headers and we feed you bad data.
+        else:
+            # Use the listen address and port
+            if ":" in self.server_address[0]:
+                base = f"[{self.server_address[0]}]:{self.server_address[1]}"
+            else:
+                base = f"{self.server_address[0]}:{self.server_address[1]}"
+                
+        if not base.endswith("/"):
+            base = base + "/"
+        if not base.startswith("http://") and not base.startswith("https://"):
+            # Assume http if not specified.
+            # TODO: Parse better?
+            base = f"{self.base_protocol}://{base}"
         
         # We're going to fix up all the episode URLs in the feed with a
         # callback that encodes them into URLs to us. See
@@ -166,7 +193,6 @@ class MicrophoneHTTPRequestHandler(BaseHTTPRequestHandler):
             """
             Return replacement text for a regex match.
             """
-            base = self.base_url if self.base_url is not None else ""
             parts = [f"{base}episode?url={urllib.parse.quote(match.group(0), safe='')}"]
             if provided_token is not None:
                 parts.append(f"token={provided_token}")
@@ -304,6 +330,11 @@ if __name__ == "__main__":
         default=None,
         help=f"Hostname and path to include in URLs in the feed, to point back to the server. Read from MICROPHONE_BASE_URL in the environment if not provided. Default: none"
     )
+    parser.add_argument(
+        "--base_protocol",
+        default=None,
+        help=f"Protocol to use when constructing URLs in the feed, to point back to the server, when --base_url is not available. Read from MICROPHONE_BASE_PROTOCOL in the environment if not provided. Default: http"
+    )
     options = parser.parse_args(sys.argv[1:])
     
     if options.token is None:
@@ -321,12 +352,10 @@ if __name__ == "__main__":
             
     if options.base_url is None:
         options.base_url = os.environ.get("MICROPHONE_BASE_URL") or None
-    if options.base_url is not None and not options.base_url.endswith("/"):
-        # Add a trailing slash so we can concatenate with relative paths
-        options.base_url += "/"
         
-    MicrophoneHTTPRequestHandler.base_url = options.base_url
-    
+    if options.base_protocol is None:
+        options.base_protocol = os.environ.get("MICROPHONE_BASE_PROTOCOL") or "http"
+            
     if ':' in options.address:
         # TODO: Python 3.9+ should support IPv6 here automatically, but doesn't.
         # The workaround is to make sure the server class has the right address family.
@@ -341,6 +370,10 @@ if __name__ == "__main__":
             sys.stderr.write("Error: --token must contain only A-Z, a-z, 0-9, and -, and must be nonempty if set\n")
             sys.exit(1)
         MicrophoneHTTPRequestHandler.expected_token = options.token
+        
+    MicrophoneHTTPRequestHandler.base_url = options.base_url
+    
+    MicrophoneHTTPRequestHandler.base_protocol = options.base_protocol
     
     # Set up the server
     server = ThreadingHTTPServer((options.address, options.port), MicrophoneHTTPRequestHandler)

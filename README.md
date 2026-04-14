@@ -31,6 +31,9 @@ To integrate with an existing Docker-Compose-managed set of services, add someth
     image: quay.io/interfect/microphone:latest
     environment:
       - "MICROPHONE_TOKEN=<insert UUID here>"
+      # The server needs to be able to construct its own URL.
+      # We can steal it from Host headers but we need to know the protocol the client sees
+      - "MICROPHONE_BASE_PROTOCOL=https"
       # Also available: MICROPHONE_ADDRESS, MICROPHONE_PORT, and MICROPHONE_BASE_URL
     labels:
       # If you're using Traefik and Let's Encrypt, these labels will expose the service on a subdomain.
