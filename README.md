@@ -30,14 +30,13 @@ To integrate with an existing Docker-Compose-managed set of services, add someth
   microphone:
     image: quay.io/interfect/microphone:latest
     environment:
-      # This is the default port but we keep it here for reference
-      - "MICROPHONE_PORT=8080"
       - "MICROPHONE_TOKEN=<insert UUID here>"
+      # Also available: MICROPHONE_ADDRESS, MICROPHONE_PORT, and MICROPHONE_BASE_URL
     labels:
       # If you're using Traefik and Let's Encrypt, these labels will expose the service on a subdomain.
-      - "traefik.enabled=true"
+      - "traefik.enable=true"
       - "traefik.http.routers.microphone.rule=Host(`yourhost.yourdomain.tld`)"
-      - "traefik.http.routers.microphone.certResolver=leresolver"
+      - "traefik.http.routers.microphone.tls.certResolver=leresolver"
       - "traefik.http.services.microphone-service.loadbalancer.server.port=8080"
     restart: always
 ```

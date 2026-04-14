@@ -46,6 +46,9 @@ class MicrophoneHTTPRequestHandler(BaseHTTPRequestHandler):
     # Can only contain alphanumeric characters and "-"
     expected_token = None
     
+    # Class-level base URL for the API to put in references back to it in the feed.
+    base_url = None
+    
     
     def do_GET(self):
         """
@@ -163,8 +166,8 @@ class MicrophoneHTTPRequestHandler(BaseHTTPRequestHandler):
             """
             Return replacement text for a regex match.
             """
-            
-            parts = [f"episode?url={urllib.parse.quote(match.group(0), safe='')}"]
+            base = self.base_url if self.base_url is not None else ""
+            parts = [f"{base}episode?url={urllib.parse.quote(match.group(0), safe='')}"]
             if provided_token is not None:
                 parts.append(f"token={provided_token}")
             # We need to use XML entities for the ampersands we add.
@@ -296,6 +299,11 @@ if __name__ == "__main__":
         default=None,
         help=f"Port for the server to listen on. Read from MICROPHONE_PORT in the environment if not provided. Default: {DEFAULT_PORT}"
     )
+    parser.add_argument(
+        "--base_url",
+        default=None,
+        help=f"Hostname and path to include in URLs in the feed, to point back to the server. Read from MICROPHONE_BASE_URL in the environment if not provided. Default: none"
+    )
     options = parser.parse_args(sys.argv[1:])
     
     if options.token is None:
@@ -310,6 +318,14 @@ if __name__ == "__main__":
         except ValueError:
             sys.stderr.write("Error: MICROPHONE_PORT is not an integer\n")
             sys.exit(1)
+            
+    if options.base_url is None:
+        options.base_url = os.environ.get("MICROPHONE_BASE_URL") or None
+    if options.base_url is not None and not options.base_url.endswith("/"):
+        # Add a trailing slash so we can concatenate with relative paths
+        options.base_url += "/"
+        
+    MicrophoneHTTPRequestHandler.base_url = options.base_url
     
     if ':' in options.address:
         # TODO: Python 3.9+ should support IPv6 here automatically, but doesn't.
