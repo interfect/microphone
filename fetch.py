@@ -22,7 +22,7 @@ def stream_clean(traffic_url, out_stream, log=lambda x: None):
     # How many variants of the episode should we look for?
     MIN_HEAD_COUNT = 5
     MAX_HEAD_COUNT = 20
-    MIN_DISTINCT = 3
+    MIN_DISTINCT = 5
 
     if not traffic_url.startswith('https://traffic.megaphone.fm/'):
         raise RuntimeError("Not a supported URL")
