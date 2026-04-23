@@ -16,6 +16,7 @@ import urllib.request
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 from fetch import stream_clean
+from db import StaticAdDatabase
 
 # Authentication tokens must match this pattern.
 # The pattern needs to allow only characters that do not need HTML or URL escaping.
@@ -79,6 +80,12 @@ class MicrophoneHTTPRequestHandler(BaseHTTPRequestHandler):
             elif parsed_url.path == "/episode":
                 # This is a request for an episode
                 self.handle_proxy_episode(query_dict)
+            elif parsed_url.path == "/db":
+                # This is a request for the ad database
+                self.handle_dump_database(query_dict)
+            elif parsed_url.path == "/robots.txt":
+                # This is a request for robots.txt
+                self.handle_robots(query_dict)
             elif parsed_url.path in ("/", "/index.html"):
                 # If they just show up, give them a homepage
                 self.handle_homepage(query_dict)
@@ -232,8 +239,22 @@ class MicrophoneHTTPRequestHandler(BaseHTTPRequestHandler):
         # Just assume we'll get the episode.
         self.send_response(200, "OK")
         self.end_headers()
-        stream_clean(remote_url, self.wfile, log=lambda message: self.log_message("%s", message))
-            
+        stream_clean(remote_url, self.wfile, log=lambda message: self.log_message("%s", message), ad_handler=StaticAdDatabase.insert, ad_lookup=StaticAdDatabase.lookup)
+        
+    def handle_dump_database(self, query_dict):
+        self.log_message("Report the ad database")
+        self.send_response(200, "OK")
+        self.send_header("Content-Type", "application/gzip")
+        self.send_header("Content-Disposition", "attachment; filename=\"ad_database.json.gz\"")
+        self.end_headers()
+        StaticAdDatabase.save(self.wfile)
+        
+    def handle_robots(self, query_dict):
+        self.log_message("Send robots file")
+        self.send_response(200, "OK")
+        self.send_header("Content-Type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"User-agent: *\nDisallow: /\n")
         
     def handle_homepage(self, query_dict):
         self.log_message("Send homepage")
@@ -258,6 +279,7 @@ class MicrophoneHTTPRequestHandler(BaseHTTPRequestHandler):
             """
         
         self.send_response(200, "OK")
+        self.send_header("Content-Type", "text/html")
         self.end_headers()
         self.wfile.write(f"""
         <!DOCTYPE html>
@@ -271,6 +293,7 @@ class MicrophoneHTTPRequestHandler(BaseHTTPRequestHandler):
                 <p>Microphone is a tool for listening to podcasts hosted via Megaphone, without dynamically-inserted ads. You have reached Microphone's built-in ad-filtering podcast proxy, designed to allow you to add an ad-free version of a podcast to your podcatcher of choice.</p>
                 <p>If you aren't running this Microphone proxy server, you might want to ask permission to use it.</p>
                 <p>Note that Microphone <b>cannot</b> filter out ads that are actually part of podcast episodes; it can only filter out dynamically-inserted Megaphone ads.</p>
+                <p>The <a href="/db">database</a> currently contains {len(StaticAdDatabase.ads)} known ads. Note that the database <b>is public</b> and may allow information to be inferred about what podcast episodes have been downloaded through Microphone, or what types of ads Megaphone thinks are relevant to you.</p>
                 <section>
                     <h2>Get Feed</h2>
                     <p>Enter the URL of a Megaphone podcast RSS feed to get a feed URL for your podcatcher.</p>
@@ -335,6 +358,11 @@ if __name__ == "__main__":
         default=None,
         help=f"Protocol to use when constructing URLs in the feed, to point back to the server, when --base_url is not available. Read from MICROPHONE_BASE_PROTOCOL in the environment if not provided. Default: http"
     )
+    parser.add_argument(
+        "--load_db",
+        default=None,
+        help=f"Gzipped JSON to load an ad database from. Read from MICROPHONE_DATABASE_PATH in the environment if not provided. Default: none"
+    )
     options = parser.parse_args(sys.argv[1:])
     
     if options.token is None:
@@ -375,6 +403,13 @@ if __name__ == "__main__":
     
     MicrophoneHTTPRequestHandler.base_protocol = options.base_protocol
     
+    if options.load_db is None:
+        options.load_db = os.environ.get("MICROPHONE_DATABASE_PATH", None)
+    
+    if options.load_db is not None:
+        StaticAdDatabase.load(open(options.load_db, "rb"))
+        sys.stderr.write(f"Loaded ad database of {len(StaticAdDatabase.ads)} ads from {options.load_db}\n")
+        
     # Set up the server
     server = ThreadingHTTPServer((options.address, options.port), MicrophoneHTTPRequestHandler)
     

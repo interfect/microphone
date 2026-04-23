@@ -11,7 +11,7 @@ import random
 from common import get_common_chunks
 
 
-def stream_clean(traffic_url, out_stream, log=lambda x: None):
+def stream_clean(traffic_url, out_stream, max_ad_load=0.20, log=lambda x: None, ad_handler=lambda x: None, ad_lookup=lambda x: None):
     """
     Given a Megaphone URL, stream a clean version of it to the given writable, with dynamic ads removed.
     """
@@ -60,7 +60,7 @@ def stream_clean(traffic_url, out_stream, log=lambda x: None):
         files_to_intersect.append(urllib.request.urlopen(url))
     
     # Filter down to common frames
-    get_common_chunks(files_to_intersect, out_stream, log=log)
+    get_common_chunks(files_to_intersect, out_stream, max_ad_load=max_ad_load, log=log, ad_handler=ad_handler, ad_lookup=ad_lookup)
 
 def open_clean(traffic_url, log=lambda x: None):
     """

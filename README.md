@@ -23,6 +23,8 @@ docker run -ti --rm -e MICROPHONE_TOKEN=8a12aa64-37c0-11f1-96aa-077586b680f4 -p 
 ```
 This makes the forms on the homepage (and the API) require the token. You can include the token in the homepage URL to pre-fill it, like [http://127.0.0.1:8080?token=8a12aa64-37c0-11f1-96aa-077586b680f4](http://127.0.0.1:8080?token=8a12aa64-37c0-11f1-96aa-077586b680f4).
 
+Note that even if your instance is private, it will still publicly serve the `/db` endpoint, with a database of MP3 frame hashes of everything it has removed as ads. **This can allow people on the Internet to try and guess what podcasts you are listening to, or what Megaphone thinks you like.**
+
 ### Permanent Deployment with Docker Compose
 
 To integrate with an existing Docker-Compose-managed set of services, add something like this to your `docker_compose.yml`:
@@ -34,7 +36,7 @@ To integrate with an existing Docker-Compose-managed set of services, add someth
       # The server needs to be able to construct its own URL.
       # We can steal it from Host headers but we need to know the protocol the client sees
       - "MICROPHONE_BASE_PROTOCOL=https"
-      # Also available: MICROPHONE_ADDRESS, MICROPHONE_PORT, and MICROPHONE_BASE_URL
+      # Also available: MICROPHONE_ADDRESS, MICROPHONE_PORT, MICROPHONE_BASE_URL, and MICROPHONE_DATABASE_PATH
     labels:
       # If you're using Traefik and Let's Encrypt, these labels will expose the service on a subdomain.
       - "traefik.enable=true"
@@ -86,10 +88,14 @@ See, MP3 files are composed of "frames" that each represent a snippet of audio. 
 
 Microphone requests several copies of a podcast episode from Megaphone, each of which is a distinct download that gets assigned its own set of ads. Microphone then compares the files, and throws away any MP3 frames that don't appear in *all* versions of the episode, with some additional logic to remove frames that do appear in all episodes but move around the file like they're slotting into ad slots. As long as there isn't an ad that got added to all versions of the episode at the same place, this results in throwing out all the ads and keeping just a clean copy of the ad-free episode. No fancy AI models needed.
 
+Microphone also includes a learning ad database. It come pre-populated with a few ads, and signatures for new ads it sees are stored in memory and used to remove ads from future podcasts even if they don't act like ads by moving around. You should access the `/db` page every once in a while to download your ad database, and save it for when you restart the server. (The database is not saved to disk automatically.)
+
 To parse MP3 frames, Microphone uses a slightly modified version of part of https://github.com/kirkeby/python-mp3, by Sune Kirkeby.
 
 # Future Plans
 Under load, or when you download a bunch of episodes at once, the remote end can get bored and hang up after getting a 200 OK but before getting all the data. Since we don't send a content-length, it won't know it doesn't have all the data, and might end up successfully downloading a 0-size file. We should split the preprocessing of the comparison streams from the live streaming and filtering so it can all happen before the 200 OK response is sent.
 
-Sometimes a marketing executive is very insistent that you have a particular ad in a particular slot, always. This makes it past the filter. To improve reliability, we should track hashes and lengths of ads, so of we ever detect and remove an ad, we'll remember it's an ad when processing futurer episodes (at least until reboot?).
+The ad database should be persistent, and have ways to remove false positives.
+
+Ads containing silent frames also in genuine content will currently get those frames removed from episodes. We should have either a list of frames to not remove, or a minimum length of ads to remove.
 
